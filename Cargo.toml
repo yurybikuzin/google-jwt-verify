@@ -1,6 +1,7 @@
 [package]
 name = "google-jwt-verify"
-version = "0.4.0"
+version = "0.4.1"
+# 0.4.1 enriched error::Error with more details
 # 0.4.0 adopted IdPayload to actual https://developers.google.com/identity/gsi/web/reference/html-reference#server-side
 authors = ["Nathan Fox <fuchsnj@gmail.com>", "Yury Bikuzin <yury.bikuzin@gmail.com>"]
 readme = "README.md"
@@ -17,14 +18,19 @@ async = ["async-trait"]
 blocking = ["reqwest/blocking"]
 
 [dependencies]
-async-trait = {version = "0.1.42", optional = true}
-openssl = "0.10.28"
-base64 = "0.13.0"
-serde = "1.0.104"
-serde_json = "1.0.48"
-serde_derive = "1.0.104"
-reqwest = {version="0.10.4"}
-headers = "0.3.1"
+async-trait = {version = "0.1", optional = true}
+openssl = "0.10"
+base64 = "0.13"
+serde = "1"
+serde_json = "1"
+serde_derive = "1"
+reqwest = {version="0.10"}
+headers = "0.3"
+thiserror = "1"
+anyhow = "1"
 
 [dev-dependencies]
 tokio = {version = "1", features = ["macros"]}
+log = "0.4"
+dotenv = "0.15"
+pretty_env_logger = "0.4"

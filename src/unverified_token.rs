@@ -29,9 +29,9 @@ where
         client_id: &str,
     ) -> Result<Self, Error> {
         let mut segments = token_string.split('.');
-        let encoded_header = segments.next().ok_or(Error::InvalidToken)?;
-        let encoded_payload = segments.next().ok_or(Error::InvalidToken)?;
-        let encoded_signature = segments.next().ok_or(Error::InvalidToken)?;
+        let encoded_header = segments.next().ok_or(Error::NoHeader)?;
+        let encoded_payload = segments.next().ok_or(Error::NoPayload)?;
+        let encoded_signature = segments.next().ok_or(Error::NoSignature)?;
 
         let header: Header = serde_json::from_slice(&base64_decode(encoded_header)?)?;
         let signed_body = format!("{}.{}", encoded_header, encoded_payload);
@@ -39,19 +39,22 @@ where
         let payload = base64_decode(encoded_payload)?;
         let claims: RequiredClaims = serde_json::from_slice(&payload)?;
         if claims.get_audience() != client_id {
-            println!(
-                "{}:{}, get_audience: {}, client_id: {client_id}",
-                file!(),
-                line!(),
-                claims.get_audience(),
-            );
-            return Err(Error::InvalidToken);
+            // error!(
+            //     "{}:{}, get_audience: {}, client_id: {client_id}",
+            //     file!(),
+            //     line!(),
+            //     claims.get_audience(),
+            // );
+            return Err(Error::AudienceDoesNotMeetClientId {
+                audience: claims.get_audience(),
+                client_id: client_id.into(),
+            });
         }
         let issuer = claims.get_issuer();
 
         if issuer != "https://accounts.google.com" && issuer != "accounts.google.com" {
-            println!("{}:{}, issuer: {issuer}", file!(), line!());
-            return Err(Error::InvalidToken);
+            // error!("{}:{}, issuer: {issuer}", file!(), line!());
+            return Err(Error::InappropriateIssuer(issuer));
         }
         println!("{}:{}", file!(), line!());
 
@@ -60,18 +63,17 @@ where
             .unwrap()
             .as_secs();
         if check_expiration && claims.get_expires_at() < current_timestamp {
-            return Err(Error::Expired);
+            return Err(Error::Expired {
+                current: current_timestamp,
+                expires_at: claims.get_expires_at(),
+            });
         }
         println!("{}:{}", file!(), line!());
         if claims.get_issued_at() > claims.get_expires_at() {
-            println!(
-                "{}:{}, get_issued_at: {}, get_expires_at: {}",
-                file!(),
-                line!(),
-                claims.get_issued_at(),
-                claims.get_expires_at()
-            );
-            return Err(Error::InvalidToken);
+            return Err(Error::ExpiredIssued {
+                issued_at: claims.get_issued_at(),
+                expires_at: claims.get_expires_at(),
+            });
         }
         println!("{}:{}", file!(), line!());
         println!(
@@ -119,8 +121,8 @@ impl<P> UnverifiedToken<P> {
     fn verify_with_key(self, key: Result<Option<JsonWebKey>, ()>) -> Result<Token<P>, Error> {
         let key = match key {
             Ok(Some(key)) => key,
-            Ok(None) => return Err(Error::InvalidToken),
-            Err(_) => return Err(Error::RetrieveKeyFailure),
+            Ok(None) => return Err(Error::NoKey),
+            Err(err) => return Err(Error::RetrieveKeyFailure(anyhow::anyhow!("{err:?}"))),
         };
         key.verify(self.signed_body.as_bytes(), &self.signature)?;
         Ok(Token::new(self.claims, self.json_payload))

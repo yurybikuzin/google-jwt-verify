@@ -71,10 +71,8 @@ impl<KP: KeyProvider> GenericClient<KP> {
     where
         for<'a> P: Deserialize<'a>,
     {
-        println!("{}:{}", file!(), line!());
         let unverified_token =
             UnverifiedToken::<P>::validate(token_string, self.check_expiration, &self.client_id)?;
-        println!("{}:{}", file!(), line!());
         unverified_token.verify(&self.key_provider)
     }
 
@@ -83,7 +81,6 @@ impl<KP: KeyProvider> GenericClient<KP> {
     }
 
     pub fn verify_id_token(&self, token_string: &str) -> Result<Token<IdPayload>, Error> {
-        println!("{}:{}", file!(), line!());
         self.verify_token_with_payload(token_string)
     }
 }

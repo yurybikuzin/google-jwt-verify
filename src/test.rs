@@ -1,5 +1,7 @@
 use super::*;
-use crate::error::Error;
+
+use anyhow::Context;
+
 use crate::jwk::JsonWebKey;
 use crate::jwk::JsonWebKeySet;
 #[cfg(feature = "async")]
@@ -66,12 +68,21 @@ pub fn decode_keys() {
 
 #[cfg(feature = "blocking")]
 #[test]
-pub fn test_client() {
+pub fn test_client() -> anyhow::Result<()> {
+    dotenv::dotenv().context(format!(
+        "file .env at {:?}",
+        std::env::current_dir().unwrap()
+    ))?;
+
+    let _ = pretty_env_logger::try_init_timed();
+
     let client =
         Client::builder("37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com")
             .custom_key_provider(TestKeyProvider)
             .build();
-    assert_eq!(client.verify_token(TOKEN).map(|_| ()), Err(Error::Expired));
+    let res = client.verify_token(TOKEN).map(|_| ());
+    assert!(matches!(res, Err(Error::Expired { .. })));
+    Ok(())
 }
 
 #[cfg(feature = "blocking")]
@@ -80,8 +91,11 @@ pub fn test_client_invalid_client_id() {
     let client = Client::builder("invalid client id")
         .custom_key_provider(TestKeyProvider)
         .build();
-    let result = client.verify_token(TOKEN).map(|_| ());
-    assert_eq!(result, Err(Error::InvalidToken))
+    let res = client.verify_token(TOKEN).map(|_| ());
+    assert!(matches!(
+        res,
+        Err(Error::AudienceDoesNotMeetClientId { .. })
+    ));
 }
 
 #[cfg(feature = "blocking")]
@@ -122,10 +136,9 @@ async fn test_client_async() {
         Client::builder("37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com")
             .custom_key_provider(TestKeyProvider)
             .build();
-    assert_eq!(
-        client.verify_token_async(TOKEN).await.map(|_| ()),
-        Err(Error::Expired)
-    );
+    let res = client.verify_token_async(TOKEN).await.map(|_| ());
+    error!("{}:{}: {res:?}", file!(), line!());
+    assert!(matches(res, Err(Error::Expired { .. })));
 }
 
 #[cfg(feature = "async")]
@@ -134,8 +147,9 @@ async fn test_client_invalid_client_id_async() {
     let client = Client::builder("invalid client id")
         .custom_key_provider(TestKeyProvider)
         .build();
-    let result = client.verify_token_async(TOKEN).await.map(|_| ());
-    assert_eq!(result, Err(Error::InvalidToken))
+    let res = client.verify_token_async(TOKEN).await.map(|_| ());
+    error!("{}:{}: {res:?}", file!(), line!());
+    assert!(matches!(res, Err(Error::InappropriateIssuer(_))));
 }
 
 #[cfg(feature = "async")]
