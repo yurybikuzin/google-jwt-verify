@@ -21,7 +21,6 @@ impl<P> Token<P> {
     }
 }
 
-// #[derive(Deserialize, Clone)]
 #[derive(PartialEq, Deserialize, Debug, Clone)]
 pub struct RequiredClaims {
     #[serde(rename = "iss")]
