@@ -1,6 +1,8 @@
 [package]
 name = "google-jwt-verify"
-version = "0.4.1"
+
+version = "0.5.0"
+# 0.5.0: pulled request: https://github.com/fuchsnj/google-jwt-verify/pull/10
 # 0.4.1 enriched error::Error with more details
 # 0.4.0 adopted IdPayload to actual https://developers.google.com/identity/gsi/web/reference/html-reference#server-side
 authors = ["Nathan Fox <fuchsnj@gmail.com>", "Yury Bikuzin <yury.bikuzin@gmail.com>"]
@@ -14,7 +16,7 @@ edition = "2021"
 
 [features]
 default = ["blocking"]
-async = ["async-trait"]
+async = ["async-trait", "tokio"]
 blocking = ["reqwest/blocking"]
 
 [dependencies]
@@ -28,9 +30,11 @@ reqwest = {version="0.10"}
 headers = "0.3"
 thiserror = "1"
 anyhow = "1"
+log = "0.4"
+tokio = {version = "1", optional = true}
 
 [dev-dependencies]
 tokio = {version = "1", features = ["macros"]}
-log = "0.4"
 dotenv = "0.15"
 pretty_env_logger = "0.4"
+futures = "0.3"

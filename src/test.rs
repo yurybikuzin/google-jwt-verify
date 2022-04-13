@@ -1,5 +1,10 @@
 use super::*;
 
+#[cfg(feature = "async")]
+use crate::client::TokioClient;
+
+use std::sync::Arc;
+
 use anyhow::Context;
 
 use crate::jwk::JsonWebKey;
@@ -8,6 +13,9 @@ use crate::jwk::JsonWebKeySet;
 use crate::key_provider::AsyncKeyProvider;
 #[cfg(feature = "blocking")]
 use crate::key_provider::KeyProvider;
+
+#[cfg(feature = "async")]
+use futures::future::join_all;
 
 #[cfg(feature = "async")]
 use async_trait::async_trait;
@@ -36,12 +44,17 @@ const JWKS: &'static str = r#"{
 const AUDIENCE: &'static str =
     "37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com";
 
-struct TestKeyProvider;
+// struct TestKeyProvider;
+#[derive(Default)]
+struct TestKeyProvider {
+    call_count: Arc<std::sync::RwLock<u8>>,
+}
 
 #[cfg(feature = "blocking")]
 impl KeyProvider for TestKeyProvider {
     fn get_key(&mut self, key_id: &str) -> Result<Option<JsonWebKey>, ()> {
         let set: JsonWebKeySet = serde_json::from_str(JWKS).unwrap();
+        *self.call_count.write().unwrap() += 1;
         Ok(set.get_key(key_id))
     }
 }
@@ -51,6 +64,7 @@ impl KeyProvider for TestKeyProvider {
 impl AsyncKeyProvider for TestKeyProvider {
     async fn get_key_async(&mut self, key_id: &str) -> Result<Option<JsonWebKey>, ()> {
         let set: JsonWebKeySet = serde_json::from_str(JWKS).unwrap();
+        *self.call_count.write().unwrap() += 1;
         Ok(set.get_key(key_id))
     }
 }
@@ -58,10 +72,10 @@ impl AsyncKeyProvider for TestKeyProvider {
 #[cfg(feature = "blocking")]
 #[test]
 pub fn decode_keys() {
-    TestKeyProvider
+    TestKeyProvider::default()
         .get_key("3f3ef9c7803cd0b8d75247ee0d31fdd5c2cf3812")
         .unwrap();
-    TestKeyProvider
+    TestKeyProvider::default()
         .get_key("a748e9f767159f667a0223318de0b2329e544362")
         .unwrap();
 }
@@ -78,7 +92,7 @@ pub fn test_client() -> anyhow::Result<()> {
 
     let client =
         Client::builder("37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com")
-            .custom_key_provider(TestKeyProvider)
+            .custom_key_provider(TestKeyProvider::default())
             .build();
     let res = client.verify_token(TOKEN).map(|_| ());
     assert!(matches!(res, Err(Error::Expired { .. })));
@@ -89,7 +103,7 @@ pub fn test_client() -> anyhow::Result<()> {
 #[test]
 pub fn test_client_invalid_client_id() {
     let client = Client::builder("invalid client id")
-        .custom_key_provider(TestKeyProvider)
+        .custom_key_provider(TestKeyProvider::default())
         .build();
     let res = client.verify_token(TOKEN).map(|_| ());
     assert!(matches!(
@@ -102,7 +116,7 @@ pub fn test_client_invalid_client_id() {
 #[test]
 pub fn test_id_token() {
     let client = Client::builder(AUDIENCE)
-        .custom_key_provider(TestKeyProvider)
+        .custom_key_provider(TestKeyProvider::default())
         .unsafe_ignore_expiration()
         .build();
     let id_token = client
@@ -119,11 +133,11 @@ pub fn test_id_token() {
 #[cfg(feature = "async")]
 #[tokio::test]
 async fn decode_keys_async() {
-    TestKeyProvider
+    TestKeyProvider::default()
         .get_key_async("3f3ef9c7803cd0b8d75247ee0d31fdd5c2cf3812")
         .await
         .unwrap();
-    TestKeyProvider
+    TestKeyProvider::default()
         .get_key_async("a748e9f767159f667a0223318de0b2329e544362")
         .await
         .unwrap();
@@ -132,10 +146,11 @@ async fn decode_keys_async() {
 #[cfg(feature = "async")]
 #[tokio::test]
 async fn test_client_async() {
-    let client =
-        Client::builder("37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com")
-            .custom_key_provider(TestKeyProvider)
-            .build();
+    let client = TokioClient::builder(
+        "37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com",
+    )
+    .custom_key_provider(TestKeyProvider::default())
+    .build();
     let res = client.verify_token_async(TOKEN).await.map(|_| ());
     error!("{}:{}: {res:?}", file!(), line!());
     assert!(matches(res, Err(Error::Expired { .. })));
@@ -144,8 +159,8 @@ async fn test_client_async() {
 #[cfg(feature = "async")]
 #[tokio::test]
 async fn test_client_invalid_client_id_async() {
-    let client = Client::builder("invalid client id")
-        .custom_key_provider(TestKeyProvider)
+    let client = TokioClient::builder("invalid client id")
+        .custom_key_provider(TestKeyProvider::default())
         .build();
     let res = client.verify_token_async(TOKEN).await.map(|_| ());
     error!("{}:{}: {res:?}", file!(), line!());
@@ -155,8 +170,8 @@ async fn test_client_invalid_client_id_async() {
 #[cfg(feature = "async")]
 #[tokio::test]
 async fn test_id_token_async() {
-    let client = Client::builder(AUDIENCE)
-        .custom_key_provider(TestKeyProvider)
+    let client = TokioClient::builder(AUDIENCE)
+        .custom_key_provider(TestKeyProvider::default())
         .unsafe_ignore_expiration()
         .build();
     let id_token = client
@@ -166,4 +181,19 @@ async fn test_id_token_async() {
     assert_eq!(id_token.get_claims().get_audience(), AUDIENCE);
     assert_eq!(id_token.get_payload().get_domain(), None);
     assert_eq!(id_token.get_payload().get_email(), "fuchsnj@gmail.com");
+}
+
+#[cfg(feature = "async")]
+#[tokio::test]
+async fn test_deadlock_prevention() {
+    let client = TokioClient::builder(AUDIENCE)
+        .unsafe_ignore_expiration()
+        .build();
+    join_all((0..10u8).map(|_| verify_token_async(&client))).await;
+}
+
+#[cfg(feature = "async")]
+async fn verify_token_async(client: &TokioClient) {
+    let result = client.verify_token_async(TOKEN).await;
+    assert_eq!(result, Err(Error::InvalidToken));
 }

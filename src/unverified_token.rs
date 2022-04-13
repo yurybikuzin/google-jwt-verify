@@ -56,7 +56,6 @@ where
             // error!("{}:{}, issuer: {issuer}", file!(), line!());
             return Err(Error::InappropriateIssuer(issuer));
         }
-        println!("{}:{}", file!(), line!());
 
         let current_timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -68,31 +67,16 @@ where
                 expires_at: claims.get_expires_at(),
             });
         }
-        println!("{}:{}", file!(), line!());
         if claims.get_issued_at() > claims.get_expires_at() {
             return Err(Error::ExpiredIssued {
                 issued_at: claims.get_issued_at(),
                 expires_at: claims.get_expires_at(),
             });
         }
-        println!("{}:{}", file!(), line!());
-        println!(
-            "{}:{}: {}",
-            file!(),
-            line!(),
-            std::str::from_utf8(&payload).unwrap()
-        );
-        println!(
-            "{}:{}: {}",
-            file!(),
-            line!(),
-            std::str::from_utf8(&payload).unwrap()
-        );
         let json_payload: P = serde_json::from_slice(&payload).map_err(|err| {
-            println!("{err:?}");
+            log::error!("{err}: {:?}", std::str::from_utf8(&payload));
             err
         })?;
-        println!("{}:{}", file!(), line!());
 
         Ok(Self {
             claims,
@@ -113,10 +97,12 @@ impl<P> UnverifiedToken<P> {
     #[cfg(feature = "async")]
     pub async fn verify_async<KP: AsyncKeyProvider>(
         self,
-        key_provider: &Arc<Mutex<KP>>,
+        // key_provider: &Arc<Mutex<KP>>,
+        key_provider: &Arc<tokio::sync::Mutex<KP>>,
     ) -> Result<Token<P>, Error> {
         let key_id = self.header.key_id.clone();
-        self.verify_with_key(key_provider.lock().unwrap().get_key_async(&key_id).await)
+        // self.verify_with_key(key_provider.lock().unwrap().get_key_async(&key_id).await)
+        self.verify_with_key(key_provider.lock().await.get_key_async(&key_id).await)
     }
     fn verify_with_key(self, key: Result<Option<JsonWebKey>, ()>) -> Result<Token<P>, Error> {
         let key = match key {
