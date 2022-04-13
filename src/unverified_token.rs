@@ -33,18 +33,28 @@ where
         let encoded_payload = segments.next().ok_or(Error::InvalidToken)?;
         let encoded_signature = segments.next().ok_or(Error::InvalidToken)?;
 
-        let header: Header = serde_json::from_slice(&base64_decode(&encoded_header)?)?;
+        let header: Header = serde_json::from_slice(&base64_decode(encoded_header)?)?;
         let signed_body = format!("{}.{}", encoded_header, encoded_payload);
-        let signature = base64_decode(&encoded_signature)?;
-        let payload = base64_decode(&encoded_payload)?;
+        let signature = base64_decode(encoded_signature)?;
+        let payload = base64_decode(encoded_payload)?;
         let claims: RequiredClaims = serde_json::from_slice(&payload)?;
         if claims.get_audience() != client_id {
+            println!(
+                "{}:{}, get_audience: {}, client_id: {client_id}",
+                file!(),
+                line!(),
+                claims.get_audience(),
+            );
             return Err(Error::InvalidToken);
         }
         let issuer = claims.get_issuer();
+
         if issuer != "https://accounts.google.com" && issuer != "accounts.google.com" {
+            println!("{}:{}, issuer: {issuer}", file!(), line!());
             return Err(Error::InvalidToken);
         }
+        println!("{}:{}", file!(), line!());
+
         let current_timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -52,10 +62,36 @@ where
         if check_expiration && claims.get_expires_at() < current_timestamp {
             return Err(Error::Expired);
         }
+        println!("{}:{}", file!(), line!());
         if claims.get_issued_at() > claims.get_expires_at() {
+            println!(
+                "{}:{}, get_issued_at: {}, get_expires_at: {}",
+                file!(),
+                line!(),
+                claims.get_issued_at(),
+                claims.get_expires_at()
+            );
             return Err(Error::InvalidToken);
         }
-        let json_payload: P = serde_json::from_slice(&payload)?;
+        println!("{}:{}", file!(), line!());
+        println!(
+            "{}:{}: {}",
+            file!(),
+            line!(),
+            std::str::from_utf8(&payload).unwrap()
+        );
+        println!(
+            "{}:{}: {}",
+            file!(),
+            line!(),
+            std::str::from_utf8(&payload).unwrap()
+        );
+        let json_payload: P = serde_json::from_slice(&payload).map_err(|err| {
+            println!("{err:?}");
+            err
+        })?;
+        println!("{}:{}", file!(), line!());
+
         Ok(Self {
             claims,
             signature,

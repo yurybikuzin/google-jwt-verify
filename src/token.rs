@@ -64,39 +64,64 @@ impl RequiredClaims {
 
 #[derive(Deserialize, Clone)]
 pub struct IdPayload {
-    email: String,
-    email_verified: bool,
-    name: String,
-    picture: String,
-    given_name: String,
-    family_name: String,
-    locale: String,
+    // https://developers.google.com/identity/gsi/web/reference/html-reference#server-side
+    iss: Option<String>,
+    nbf: Option<u64>,
+    aud: Option<String>,
+    sub: Option<String>,
     hd: Option<String>,
+    email: Option<String>,
+    email_verified: Option<bool>,
+    azp: Option<String>,
+    name: Option<String>,
+    picture: Option<String>,
+    given_name: Option<String>,
+    family_name: Option<String>,
+    iat: Option<u64>,
+    exp: Option<u64>,
 }
 
 impl IdPayload {
-    pub fn get_email(&self) -> String {
-        self.email.clone()
+    pub fn get_iss(&self) -> Option<String> {
+        self.iss.clone()
     }
-    pub fn is_email_verified(&self) -> bool {
-        self.email_verified
+    pub fn get_nbf(&self) -> Option<u64> {
+        self.nbf
     }
-    pub fn get_name(&self) -> String {
-        self.name.clone()
+    pub fn get_aud(&self) -> Option<String> {
+        self.aud.clone()
     }
-    pub fn get_picture_url(&self) -> String {
-        self.picture.clone()
-    }
-    pub fn get_given_name(&self) -> String {
-        self.given_name.clone()
-    }
-    pub fn get_family_name(&self) -> String {
-        self.family_name.clone()
-    }
-    pub fn get_locale(&self) -> String {
-        self.locale.clone()
+    pub fn get_sub(&self) -> Option<String> {
+        self.sub.clone()
     }
     pub fn get_domain(&self) -> Option<String> {
         self.hd.clone()
+    }
+    pub fn get_email(&self) -> Option<String> {
+        self.email.clone()
+    }
+    pub fn is_email_verified(&self) -> Option<bool> {
+        self.email_verified
+    }
+    pub fn get_azp(&self) -> Option<String> {
+        self.azp.clone()
+    }
+    pub fn get_name(&self) -> Option<String> {
+        self.name.clone()
+    }
+    pub fn get_picture_url(&self) -> Option<String> {
+        self.picture.clone()
+    }
+    pub fn get_given_name(&self) -> Option<String> {
+        self.given_name.clone()
+    }
+    pub fn get_family_name(&self) -> Option<String> {
+        self.family_name.clone()
+    }
+    pub fn get_iat(&self) -> Option<u64> {
+        self.iat
+    }
+    pub fn get_exp(&self) -> Option<u64> {
+        self.exp
     }
 }

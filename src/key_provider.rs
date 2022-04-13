@@ -42,7 +42,7 @@ impl GoogleKeyProvider {
                 expiration_time = Some(Instant::now() + max_age);
             }
         }
-        let key_set = serde_json::from_str(&text).map_err(|_| ())?;
+        let key_set = serde_json::from_str(text).map_err(|_| ())?;
         if let Some(expiration_time) = expiration_time {
             self.cached = Some(key_set);
             self.expiration_time = expiration_time;
